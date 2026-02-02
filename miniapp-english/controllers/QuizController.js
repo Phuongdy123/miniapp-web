@@ -9,7 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedAnswer = null;
     let answered = false;
     let skillMetrics = {}; // Theo dõi điểm từng kỹ năng để AI phân tích
-    
+    function getUrlParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+    }
     // URL Google Apps Script (GIỮ NGUYÊN)
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxw-AvIsJHZ6xOVMLRdSaU9nOaSR1dRnJL9C-cePmaWFAKOY1TP4kQCjA-e-ktfao7u/exec';
 // Copy toàn bộ URL từ Postman dán vào đây
@@ -217,18 +220,71 @@ async function sendDataToGoogleSheet(data) {
     // ============================================================
 
     // 1. NÚT START
-    const startBtn = document.getElementById('start-btn');
-    if (startBtn) {
-        startBtn.addEventListener('click', () => {
+    // 1. NÚT START
+   /* --- THAY THẾ TOÀN BỘ LOGIC TRONG SỰ KIỆN START-BTN --- */
+const startBtn = document.getElementById('start-btn');
+if (startBtn) {
+    startBtn.addEventListener('click', () => {
+        // 1. Kiểm tra tham số từ WP Elementor truyền qua URL
+        const wpName = getUrlParam('fullname');
+        const wpPhone = getUrlParam('phone');
+        const wpEmail = getUrlParam('email');
+        const wpSchool = getUrlParam('school');
+
+        if (wpName && wpPhone) {
+            // NẾU CÓ DATA TỪ WP -> BỎ QUA FORM
+            console.log("Dữ liệu nhận từ WP: ", wpName);
+            
+            participantData = {
+                zalo_user_id: 'WP-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+                full_name: wpName,
+                phone_number: wpPhone,
+                email: wpEmail || '',
+                school_name: wpSchool || 'Khách từ Website',
+                score: 0,
+                language: '',
+                level: '',
+                writing_responses: [],
+                completed_at: new Date().toISOString()
+            };
+            
+            // Lưu session và đi thẳng tới chọn ngôn ngữ
+            saveSession(participantData);
+            showScreen('language'); 
+
+        } else {
+            // NẾU KHÔNG CÓ DATA TỪ WP -> KIỂM TRA SESSION CŨ HOẶC MỞ FORM
             const savedData = getSession();
             if (savedData) {
                 participantData = savedData;
                 showScreen('language'); 
             } else {
-                showScreen('form'); 
+                showScreen('form'); // Hiển thị form nếu khách mới hoàn toàn
             }
-        });
+        }
+    });
+}
+// --- VỊ TRÍ 2: KIỂM TRA ĐIỀU KIỆN TRONG SENDDATA ---
+async function sendDataToGoogleSheet(data) {
+    if (!data || !data.full_name) return; // Bảo vệ: Không gửi nếu thiếu tên
+    
+    const formData = new FormData();
+    // Đồng bộ key với Google Apps Script của bạn
+    formData.append("fullname", data.full_name);
+    formData.append("phone", data.phone_number);
+    formData.append("email", data.email);
+    formData.append("score", Math.round(data.score) || 0);
+    formData.append("language", data.language || "Chưa chọn");
+    formData.append("level", data.level || "Chưa chọn");
+    formData.append("prize", data.prize_won || "Chưa quay");
+
+    try {
+        await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: formData });
+        console.log("✅ Sync WP Data Success");
+    } catch (e) {
+        console.error("❌ Sync Failed", e);
     }
+}
 
     // 2. XỬ LÝ FORM SUBMIT
     const infoForm = document.getElementById('info-form');
