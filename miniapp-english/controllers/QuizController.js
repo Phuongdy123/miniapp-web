@@ -212,38 +212,59 @@ async function sendDataToGoogleSheet(data) {
     // 1. NÚT START
     // 1. NÚT START
    /* --- THAY THẾ TOÀN BỘ LOGIC TRONG SỰ KIỆN START-BTN --- */
+
+// --- LOGIC XỬ LÝ NÚT BẮT ĐẦU & NHẬN DỮ LIỆU TỪ WORDPRESS ---
 const startBtn = document.getElementById('start-btn');
+
 if (startBtn) {
     startBtn.addEventListener('click', () => {
-        // Lấy tham số từ URL Redirect của Elementor
-        const wpName = getUrlParam('name');
-        const wpPhone = getUrlParam('phone');
-        const wpEmail = getUrlParam('email');
-        const wpDate = getUrlParam('date'); // Năm sinh
+        // 1. Lấy tham số từ URL Redirect của Elementor
+        const wpName = getUrlParam('name');   // Khớp với [field id="name"]
+        const wpPhone = getUrlParam('phone'); // Khớp với [field id="phone"]
+        const wpEmail = getUrlParam('email'); // Khớp với [field id="email"]
+        const wpDate = getUrlParam('date');   // Khớp với [field id="date"] (Năm sinh)
 
+        // 2. Log dữ liệu ra Console để kiểm tra
+        console.log(">>> [DEBUG] Dữ liệu nhận từ WordPress:");
+        console.log("- Họ tên (name):", wpName);
+        console.log("- SĐT (phone):", wpPhone);
+        console.log("- Email (email):", wpEmail);
+        console.log("- Năm sinh (date):", wpDate);
+
+        // 3. Kiểm tra điều kiện dữ liệu tối thiểu (Tên và SĐT)
         if (wpName && wpPhone) {
-            // Khởi tạo data đồng bộ với WP
+            console.log(">>> [SUCCESS] Tìm thấy dữ liệu WP. Bỏ qua màn hình nhập liệu.");
+            
+            // Khởi tạo đối tượng người tham gia (Đã bỏ các trường Zalo)
             participantData = {
                 user_id: 'WEB-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
                 full_name: wpName,
                 phone_number: wpPhone,
                 email: wpEmail || '',
-                birth_year: wpDate || '', // Lưu năm sinh từ field "date"
+                birth_year: wpDate || '', 
                 school_name: 'Khách từ Website',
                 score: 0,
                 language: '',
                 level: '',
+                writing_responses: [],
                 completed_at: new Date().toISOString()
             };
             
+            // Lưu phiên làm việc và chuyển thẳng tới màn hình chọn ngôn ngữ
             saveSession(participantData);
             showScreen('language'); 
+
         } else {
+            // NẾU KHÔNG CÓ DATA TỪ WP -> KIỂM TRA SESSION CŨ HOẶC MỞ FORM TRỐNG
+            console.warn(">>> [INFO] Không có dữ liệu từ URL. Kiểm tra Session...");
+            
             const savedData = getSession();
             if (savedData) {
+                console.log(">>> [SUCCESS] Tìm thấy phiên làm việc cũ:", savedData.full_name);
                 participantData = savedData;
                 showScreen('language'); 
             } else {
+                console.log(">>> [INFO] Khách mới hoàn toàn. Hiển thị Form nhập liệu.");
                 showScreen('form'); 
             }
         }
