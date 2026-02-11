@@ -1,19 +1,21 @@
 {
   "routes": [
     {
+      "src": "/models/(.*)",
+      "dest": "/miniapp-english/models/$1"
+    },
+    {
+      "src": "/controllers/(.*)",
+      "dest": "/miniapp-english/controllers/$1"
+    },
+    {
+      "src": "/public/(.*)",
+      "dest": "/miniapp-english/public/$1"
+    },
+    {
       "src": "^/$",
       "dest": "/miniapp-english/views/index.html"
     },
-    {
-      "src": "^/views/?$",
-      "dest": "/miniapp-english/views/index.html"
-    },
-    {
-      "src": "^/views/(.*)$",
-      "dest": "/miniapp-english/views/$1"
-    },
-
-    
     {
       "src": "^/(.*)$",
       "dest": "/miniapp-english/views/index.html"
