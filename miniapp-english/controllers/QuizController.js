@@ -132,41 +132,31 @@ document.addEventListener('DOMContentLoaded', () => {
 // 3. Hàm gửi dữ liệu (SỬA ĐỔI)
 // 3. Hàm gửi dữ liệu (Bản chuẩn cho GAS trung gian)
 async function sendDataToGoogleSheet(data) {
-  if (!data) return;
-  
-  const formData = new FormData();
+    if (!data || !data.full_name) return;
+    
+    const formData = new FormData();
+    
+    // Gửi dữ liệu đồng bộ
+    formData.append("fullname", data.full_name);
+    formData.append("phone", data.phone_number);
+    formData.append("email", data.email);
+    formData.append("birth_year", data.birth_year); // Gửi năm sinh
+    formData.append("score", Math.round(data.score) || 0);
+    formData.append("language", data.language || "Chưa chọn");
+    formData.append("level", data.level || "Chưa chọn");
+    formData.append("prize", data.prize_won || "Chưa quay");
+    formData.append("source", "Wordpress Elementor");
 
-  // Mapping dữ liệu chính xác để GAS có thể nhận p.fullname, p.phone...
-  formData.append("zalo_user_id", data.zalo_user_id || "");
-  formData.append("fullname", data.full_name || "");
-  formData.append("phone", data.phone_number || "");
-  formData.append("email", data.email || "");
-  formData.append("school_name", data.school_name || "");
-  formData.append("score", data.score || 0);
-  formData.append("qr_code", window.location.href);
-  formData.append("value", "Zalo MiniApp");
-  
-  // Gửi thêm thông tin ngôn ngữ và cấp độ
-  formData.append("language", data.language || ""); 
-  formData.append("level", data.level || "");
-
-  // Ghi chú cơ bản (GAS sẽ tự tối ưu lại ghi chú này khi gửi sang Bizfly)
-  formData.append("ghi_chu", `Prize: ${data.prize_won || "None"}`);
-  
-  // Nếu có bài viết tự luận, gửi kèm để AI chấm
-  if (data.writing_responses && data.writing_responses.length > 0) {
-      formData.append("writing", data.writing_responses.join(" | "));
-  }
-
-  try {
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      body: formData,
-    });
-    console.log("✅ Dữ liệu đã được đẩy lên GAS trung chuyển.");
-  } catch (error) {
-    console.error("❌ Lỗi gửi dữ liệu:", error);
-  }
+    try {
+        await fetch(GOOGLE_SCRIPT_URL, { 
+            method: 'POST', 
+            mode: 'no-cors', // Thêm nếu gặp lỗi CORS khi gửi lên Apps Script
+            body: formData 
+        });
+        console.log("✅ Sync Data Success");
+    } catch (e) {
+        console.error("❌ Sync Failed", e);
+    }
 }
 
     // --- CẤU HÌNH LƯU TRỮ (LOCAL STORAGE) ---
@@ -225,41 +215,36 @@ async function sendDataToGoogleSheet(data) {
 const startBtn = document.getElementById('start-btn');
 if (startBtn) {
     startBtn.addEventListener('click', () => {
-        // 1. Kiểm tra tham số từ WP Elementor truyền qua URL
-        const wpName = getUrlParam('fullname');
+        // Lấy tham số từ URL Redirect của Elementor
+        const wpName = getUrlParam('name');
         const wpPhone = getUrlParam('phone');
         const wpEmail = getUrlParam('email');
-        const wpSchool = getUrlParam('school');
+        const wpDate = getUrlParam('date'); // Năm sinh
 
         if (wpName && wpPhone) {
-            // NẾU CÓ DATA TỪ WP -> BỎ QUA FORM
-            console.log("Dữ liệu nhận từ WP: ", wpName);
-            
+            // Khởi tạo data đồng bộ với WP
             participantData = {
-                zalo_user_id: 'WP-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
+                user_id: 'WEB-' + Math.random().toString(36).substr(2, 5).toUpperCase(),
                 full_name: wpName,
                 phone_number: wpPhone,
                 email: wpEmail || '',
-                school_name: wpSchool || 'Khách từ Website',
+                birth_year: wpDate || '', // Lưu năm sinh từ field "date"
+                school_name: 'Khách từ Website',
                 score: 0,
                 language: '',
                 level: '',
-                writing_responses: [],
                 completed_at: new Date().toISOString()
             };
             
-            // Lưu session và đi thẳng tới chọn ngôn ngữ
             saveSession(participantData);
             showScreen('language'); 
-
         } else {
-            // NẾU KHÔNG CÓ DATA TỪ WP -> KIỂM TRA SESSION CŨ HOẶC MỞ FORM
             const savedData = getSession();
             if (savedData) {
                 participantData = savedData;
                 showScreen('language'); 
             } else {
-                showScreen('form'); // Hiển thị form nếu khách mới hoàn toàn
+                showScreen('form'); 
             }
         }
     });
@@ -287,23 +272,30 @@ async function sendDataToGoogleSheet(data) {
 }
 
     // 2. XỬ LÝ FORM SUBMIT
+   // 2. XỬ LÝ FORM SUBMIT
     const infoForm = document.getElementById('info-form');
     if (infoForm) {
         infoForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Ngăn reload trang
             
             const submitBtn = document.getElementById('submit-form-btn');
             const originalText = submitBtn.innerHTML;
             
+            // Hiệu ứng loading cho nút
             submitBtn.innerHTML = 'Đang xử lý... ⏳';
             submitBtn.disabled = true;
-let customId = 'user-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            // Tạo ID ngẫu nhiên cho user nếu chưa có
+            let customId = 'user-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            // Lấy giá trị từ các input
             const fullName = document.getElementById('full-name').value.trim();
             const schoolName = document.getElementById('school-name').value.trim();
             const phoneNumber = document.getElementById('phone-number').value.trim();
             const email = document.getElementById('user-email').value.trim();
             const phoneConsent = document.getElementById('phone-consent').checked;
             
+            // Validate dữ liệu cơ bản
             if (!fullName || !schoolName || !phoneNumber || !email) {
                 alert("Vui lòng điền đầy đủ thông tin!");
                 submitBtn.innerHTML = originalText;
@@ -311,6 +303,16 @@ let customId = 'user-' + Math.random().toString(36).substr(2, 9).toUpperCase();
                 return;
             }
             
+            // Validate số điện thoại (đơn giản)
+            const phoneRegex = /^[0-9]{10,11}$/;
+            if (!phoneRegex.test(phoneNumber)) {
+                alert("Vui lòng nhập số điện thoại hợp lệ (10-11 số)!");
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                return;
+            }
+
+            // Cập nhật object participantData
             participantData = {
                 zalo_user_id: customId,
                 full_name: fullName,
@@ -319,22 +321,29 @@ let customId = 'user-' + Math.random().toString(36).substr(2, 9).toUpperCase();
                 email: email,
                 phone_consent: phoneConsent,
                 score: 0,
-                language: '',
-                level: '',
+                language: '', // Sẽ cập nhật ở bước sau
+                level: '',    // Sẽ cập nhật ở bước sau
                 writing_responses: [],
                 completed_at: new Date().toISOString(),
                 unlocked_wheel: false,
                 prize_won: ''
             };
             
+            // Lưu vào localStorage
             saveSession(participantData);
+            
+            // Gửi dữ liệu lead lên Google Sheet (Ghi nhận đã đăng ký)
+            // Lưu ý: Lúc này chưa có điểm và ngôn ngữ, nhưng ta lưu thông tin liên hệ trước
             await sendDataToGoogleSheet(participantData);       
+            
+            // Reset nút và chuyển màn hình
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
+            
+            // Chuyển sang màn hình chọn ngôn ngữ
             showScreen('language'); 
         });
     }
-
 
     // 3. CÁC NÚT CHỌN NGÔN NGỮ
     const langButtons = document.querySelectorAll('.lang-btn');
