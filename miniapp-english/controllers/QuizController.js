@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return urlParams.get(param);
     }
     // URL Google Apps Script (GIỮ NGUYÊN)
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxw-AvIsJHZ6xOVMLRdSaU9nOaSR1dRnJL9C-cePmaWFAKOY1TP4kQCjA-e-ktfao7u/exec';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdfehWXlU2AHd60-d-PWkcQ1wB6fto_aNJeea8YtnfbK3uSrTfbpx3ErpRIK1GbFFfQQ/exec';
 // Copy toàn bộ URL từ Postman dán vào đây
     // ============================================================
     // --- CẤU HÌNH QUY ĐỔI ĐIỂM & KHÓA HỌC (DATA SETTINGS) ---
@@ -132,30 +132,73 @@ document.addEventListener('DOMContentLoaded', () => {
 // 3. Hàm gửi dữ liệu (SỬA ĐỔI)
 // 3. Hàm gửi dữ liệu (Bản chuẩn cho GAS trung gian)
 async function sendDataToGoogleSheet(data) {
-    if (!data || !data.full_name) return;
+    if (!data || !data.full_name) return; // Bảo vệ: Không gửi nếu thiếu tên
     
-    const formData = new FormData();
-    
-    // Gửi dữ liệu đồng bộ
-    formData.append("fullname", data.full_name);
-    formData.append("phone", data.phone_number);
-    formData.append("email", data.email);
-    formData.append("birth_year", data.birth_year); // Gửi năm sinh
-    formData.append("score", Math.round(data.score) || 0);
-    formData.append("language", data.language || "Chưa chọn");
-    formData.append("level", data.level || "Chưa chọn");
-    formData.append("prize", data.prize_won || "Chưa quay");
-    formData.append("source", "Wordpress Elementor");
+    console.log("🚀 Đang gửi dữ liệu...", data);
 
+    // --- A. Chuẩn bị dữ liệu cho Google Sheets (FormData) ---
+    const googleFormData = new FormData();
+    googleFormData.append("id", data.user_id || data.zalo_user_id || "");
+    googleFormData.append("fullname", data.full_name);
+    googleFormData.append("phone", data.phone_number);
+    googleFormData.append("email", data.email);
+    googleFormData.append("birth_year", data.birth_year || "");
+    googleFormData.append("school_name", data.school_name || "Khách lẻ");
+    googleFormData.append("score", Math.round(data.score) || 0);
+    googleFormData.append("language", data.language || "Chưa chọn");
+    googleFormData.append("level", data.level || "Chưa chọn");
+    googleFormData.append("rank", data.rank || "");
+    googleFormData.append("prize", data.prize_won || "Chưa quay");
+    googleFormData.append("source", "Wordpress Elementor");
+    googleFormData.append("qr_code", window.location.href);
+
+    // Tạo ghi chú chi tiết cho cột Note
+    let noteInfo = [];
+    if (data.rank) noteInfo.push(`🏆 Rank: ${data.rank}`);
+    if (data.ai_advice) noteInfo.push(`💡 Gợi ý: ${data.ai_advice}`);
+    if (data.weak_skill) noteInfo.push(`📉 Yếu: ${data.weak_skill} (${data.weak_percent}%)`);
+    googleFormData.append("ghi_chu", noteInfo.join("\n"));
+
+
+    // --- B. Chuẩn bị dữ liệu cho Bizfly (JSON) ---
+    const bizflyData = {
+        name: data.full_name,
+        phone: data.phone_number,
+        email: data.email,
+        tags: ["quiz-lead", `lang-${data.language}`, `rank-${data.rank}`],
+        note: noteInfo.join(" | "), // Bizfly thường nhận note 1 dòng
+        data: {
+            score: data.score,
+            level: data.level,
+            language: data.language,
+            birth_year: data.birth_year,
+            source: "Web Quiz"
+        }
+    };
+
+    // --- C. Gửi song song (Promise.allSettled) ---
+    // Giúp gửi cả 2 cùng lúc, bên nào lỗi không ảnh hưởng bên kia
     try {
-        await fetch(GOOGLE_SCRIPT_URL, { 
-            method: 'POST', 
-            mode: 'no-cors', // Thêm nếu gặp lỗi CORS khi gửi lên Apps Script
-            body: formData 
-        });
-        console.log("✅ Sync Data Success");
+        const results = await Promise.allSettled([
+            // 1. Gửi Google Sheets
+            fetch(GOOGLE_SCRIPT_URL, { 
+                method: 'POST', 
+                mode: 'no-cors', 
+                body: googleFormData 
+            }),
+            
+            // 2. Gửi Bizfly (Nếu đã cấu hình URL)
+            BIZFLY_WEBHOOK_URL && BIZFLY_WEBHOOK_URL.includes('http') ? fetch(BIZFLY_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bizflyData),
+                mode: 'no-cors' // Quan trọng để tránh lỗi CORS trên trình duyệt
+            }) : Promise.resolve("Skipped Bizfly")
+        ]);
+
+        console.log("✅ Đồng bộ dữ liệu hoàn tất:", results);
     } catch (e) {
-        console.error("❌ Sync Failed", e);
+        console.error("❌ Lỗi đồng bộ dữ liệu:", e);
     }
 }
 
