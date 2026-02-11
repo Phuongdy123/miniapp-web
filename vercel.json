@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "src": "^/$",
+      "dest": "/miniapp-english/views/index.html"
+    },
+    {
+      "src": "^/views/?$",  
+      "dest": "/miniapp-english/views/index.html"
+    },
+    {
+      "src": "^/views/(.*)$",
+      "dest": "/miniapp-english/views/$1"
+    }
+  ]
+}
