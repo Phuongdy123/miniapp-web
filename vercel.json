@@ -5,12 +5,18 @@
       "dest": "/miniapp-english/views/index.html"
     },
     {
-      "src": "^/views/?$",  
+      "src": "^/views/?$",
       "dest": "/miniapp-english/views/index.html"
     },
     {
       "src": "^/views/(.*)$",
       "dest": "/miniapp-english/views/$1"
+    },
+
+    
+    {
+      "src": "^/(.*)$",
+      "dest": "/miniapp-english/views/index.html"
     }
   ]
 }
